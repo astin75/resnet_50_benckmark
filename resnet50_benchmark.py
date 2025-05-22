@@ -19,6 +19,7 @@ def get_max_batch_size(model, image_size=(3, 224, 224), device='cuda', dtype=tor
                 _ = model(dummy_input)
             max_batch_size = batch_size
             batch_size *= 2
+            print(f"batch_size: {batch_size}")
             gc.collect()
             torch.cuda.empty_cache()
         except RuntimeError as e:

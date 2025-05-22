@@ -5,9 +5,13 @@ RUN apt-get update && \
     apt-get install -y python3-pip python3-dev && \
     rm -rf /var/lib/apt/lists/*
 
+# uv 설치 및 가상 환경 생성
 RUN pip install uv
+RUN uv venv /app/venv
+ENV PATH="/app/venv/bin:$PATH"
+
 # PyTorch + torchvision (GPU 버전)
-RUN uv add torch torchvision --index-url https://download.pytorch.org/whl/cu121
+RUN uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
 # 작업 디렉토리 생성
 WORKDIR /app
@@ -16,4 +20,4 @@ WORKDIR /app
 COPY resnet50_benchmark.py .
 
 # 실행 커맨드
-CMD ["uv", "run", "resnet50_benchmark.py"]
+CMD ["python", "resnet50_benchmark.py"]
