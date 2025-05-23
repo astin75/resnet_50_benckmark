@@ -7,5 +7,5 @@ docker build -t resnet50-benchmark .
 docker run --rm --gpus all resnet50-benchmark
 
 # docker push
-docker tag resnet50-benchmark astin75/resnet50-benchmark:latest
-docker push astin75/resnet50-benchmark:latest
+docker tag resnet50-benchmark astin75/resnet50-benchmark:2505231442
+docker push astin75/resnet50-benchmark:2505231442
