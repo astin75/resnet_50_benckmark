@@ -20,4 +20,4 @@ WORKDIR /app
 COPY resnet50_benchmark.py .
 
 # 실행 커맨드
-CMD ["python", "resnet50_benchmark.py"]
+CMD ["sh", "-c", "python resnet50_benchmark.py && exit 0"]
