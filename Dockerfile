@@ -18,6 +18,7 @@ RUN uv pip install transformers accelerate
 
 # FlagEmbedding (BGE M3) 설치
 RUN uv pip install -U FlagEmbedding
+RUN uv pip install transformers==4.44.2
 
 # 작업 디렉토리 생성
 WORKDIR /app
