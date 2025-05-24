@@ -1,5 +1,5 @@
 import torch
-import torchvision.models as models
+from transformers import AutoImageProcessor, ResNetForImageClassification
 import time
 import gc
 import subprocess
@@ -23,22 +23,23 @@ def print_gpu_memory_status(test_name):
         print("nvidia-smi를 찾을 수 없습니다. NVIDIA 드라이버가 설치되어 있는지 확인하세요.")
     print("=" * 60)
 
-def get_max_batch_size_fp32(model, image_size=(3, 224, 224), device='cuda', dtype=torch.float32):
+def get_max_batch_size_fp32(model, processor, image_size=(3, 224, 224), device='cuda', dtype=torch.float32):
     """FP32에 대한 최대 배치 사이즈 찾기"""
     batch_size = 1
     max_batch_size = 1
     
     while True:
         try:
+            # Transformers 모델용 입력 생성
             dummy_input = torch.randn(batch_size, *image_size, device=device, dtype=dtype)
             with torch.no_grad():
-                _ = model(dummy_input)
+                outputs = model(pixel_values=dummy_input)
             max_batch_size = batch_size
             batch_size *= 2
             print(f"배치 사이즈 테스트: {batch_size}")
             
             # 메모리 정리
-            del dummy_input
+            del dummy_input, outputs
             gc.collect()
             torch.cuda.empty_cache()
             
@@ -50,7 +51,7 @@ def get_max_batch_size_fp32(model, image_size=(3, 224, 224), device='cuda', dtyp
     
     return max_batch_size
 
-def get_max_batch_size_fp16(model, image_size=(3, 224, 224), device='cuda'):
+def get_max_batch_size_fp16(model, processor, image_size=(3, 224, 224), device='cuda'):
     """FP16 AMP에 대한 최대 배치 사이즈 찾기"""
     batch_size = 1
     max_batch_size = 1
@@ -60,13 +61,13 @@ def get_max_batch_size_fp16(model, image_size=(3, 224, 224), device='cuda'):
             dummy_input = torch.randn(batch_size, *image_size, device=device)
             with torch.no_grad():
                 with torch.cuda.amp.autocast():
-                    _ = model(dummy_input)
+                    outputs = model(pixel_values=dummy_input)
             max_batch_size = batch_size
             batch_size *= 2
             print(f"배치 사이즈 테스트 (FP16): {batch_size}")
             
             # 메모리 정리
-            del dummy_input
+            del dummy_input, outputs
             gc.collect()
             torch.cuda.empty_cache()
             
@@ -78,7 +79,7 @@ def get_max_batch_size_fp16(model, image_size=(3, 224, 224), device='cuda'):
     
     return max_batch_size
 
-def benchmark_fp32(model, batch_size, image_size=(3, 224, 224), num_iters=50, device='cuda', dtype=torch.float32):
+def benchmark_fp32(model, processor, batch_size, image_size=(3, 224, 224), num_iters=50, device='cuda', dtype=torch.float32):
     """FP32 벤치마크 실행"""
     dummy_input = torch.randn(batch_size, *image_size, device=device, dtype=dtype)
     model.eval()
@@ -86,13 +87,13 @@ def benchmark_fp32(model, batch_size, image_size=(3, 224, 224), num_iters=50, de
     with torch.no_grad():
         # 워밍업
         for _ in range(10):
-            _ = model(dummy_input)
+            outputs = model(pixel_values=dummy_input)
         
         torch.cuda.synchronize()
         start = time.time()
         
         for _ in range(num_iters):
-            _ = model(dummy_input)
+            outputs = model(pixel_values=dummy_input)
         
         torch.cuda.synchronize()
         end = time.time()
@@ -101,7 +102,7 @@ def benchmark_fp32(model, batch_size, image_size=(3, 224, 224), num_iters=50, de
     throughput = batch_size / avg_time
     return avg_time, throughput
 
-def benchmark_fp16(model, batch_size, image_size=(3, 224, 224), num_iters=50, device='cuda'):
+def benchmark_fp16(model, processor, batch_size, image_size=(3, 224, 224), num_iters=50, device='cuda'):
     """FP16 AMP 벤치마크 실행"""
     dummy_input = torch.randn(batch_size, *image_size, device=device)
     model.eval()
@@ -110,14 +111,14 @@ def benchmark_fp16(model, batch_size, image_size=(3, 224, 224), num_iters=50, de
         # 워밍업
         for _ in range(10):
             with torch.cuda.amp.autocast():
-                _ = model(dummy_input)
+                outputs = model(pixel_values=dummy_input)
         
         torch.cuda.synchronize()
         start = time.time()
         
         for _ in range(num_iters):
             with torch.cuda.amp.autocast():
-                _ = model(dummy_input)
+                outputs = model(pixel_values=dummy_input)
         
         torch.cuda.synchronize()
         end = time.time()
@@ -131,20 +132,24 @@ def run_fp32_test(device='cuda'):
     print_gpu_memory_status("FP32 테스트")
     print(f"\n===== FP32 테스트 =====")
     
-    # 모델 생성
-    model = models.resnet50(pretrained=False).to(device).to(torch.float32)
+    # Transformers 모델 및 프로세서 로드
+    processor = AutoImageProcessor.from_pretrained("microsoft/resnet-50")
+    model = ResNetForImageClassification.from_pretrained(
+        "microsoft/resnet-50",
+        torch_dtype=torch.float32
+    ).to(device)
     
     # 최대 배치 사이즈 찾기
-    max_batch = get_max_batch_size_fp32(model, device=device, dtype=torch.float32)
+    max_batch = get_max_batch_size_fp32(model, processor, device=device, dtype=torch.float32)
     print(f"[FP32] 최대 배치 사이즈: {max_batch}")
     
     # 벤치마크 실행
-    avg_time, throughput = benchmark_fp32(model, max_batch, device=device, dtype=torch.float32)
+    avg_time, throughput = benchmark_fp32(model, processor, max_batch, device=device, dtype=torch.float32)
     print(f"[FP32] 평균 추론 시간: {avg_time:.6f} 초")
     print(f"[FP32] 처리량: {throughput:.2f} images/sec")
     
     # 메모리 정리
-    del model
+    del model, processor
     gc.collect()
     torch.cuda.empty_cache()
 
@@ -154,20 +159,24 @@ def run_fp16_test(device='cuda'):
     print(f"\n===== FP16 (AMP) 테스트 =====")
     print("주의: FP16은 torch.cuda.amp를 사용한 자동 혼합 정밀도입니다")
     
-    # 모델 생성
-    model = models.resnet50(pretrained=False).to(device)
+    # Transformers 모델 및 프로세서 로드
+    processor = AutoImageProcessor.from_pretrained("microsoft/resnet-50")
+    model = ResNetForImageClassification.from_pretrained(
+        "microsoft/resnet-50",
+        torch_dtype=torch.float16
+    ).to(device)
     
     # 최대 배치 사이즈 찾기
-    max_batch = get_max_batch_size_fp16(model, device=device)
+    max_batch = get_max_batch_size_fp16(model, processor, device=device)
     print(f"[FP16] 최대 배치 사이즈: {max_batch}")
     
     # 벤치마크 실행
-    avg_time, throughput = benchmark_fp16(model, max_batch, device=device)
+    avg_time, throughput = benchmark_fp16(model, processor, max_batch, device=device)
     print(f"[FP16] 평균 추론 시간: {avg_time:.6f} 초")
     print(f"[FP16] 처리량: {throughput:.2f} images/sec")
     
     # 메모리 정리
-    del model
+    del model, processor
     gc.collect()
     torch.cuda.empty_cache()
 

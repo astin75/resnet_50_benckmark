@@ -13,6 +13,9 @@ ENV PATH="/app/venv/bin:$PATH"
 # PyTorch + torchvision (GPU 버전)
 RUN uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
+# Transformers 및 관련 라이브러리 설치
+RUN uv pip install transformers accelerate
+
 # 작업 디렉토리 생성
 WORKDIR /app
 
