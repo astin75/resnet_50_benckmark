@@ -10,8 +10,8 @@ RUN pip install uv
 RUN uv venv /app/venv
 ENV PATH="/app/venv/bin:$PATH"
 
-# PyTorch + torchvision (GPU 버전)
-RUN uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# PyTorch + torchvision (GPU 버전) - 호환 버전 명시
+RUN uv pip install torch==2.1.2 torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cu121
 
 # Transformers 및 관련 라이브러리 설치
 RUN uv pip install transformers accelerate
