@@ -127,6 +127,47 @@ def benchmark_fp16(model, processor, batch_size, image_size=(3, 224, 224), num_i
     throughput = batch_size / avg_time
     return avg_time, throughput
 
+def test_bge_m3_fp16():
+    """BGE M3 FP16 테스트 - 단순히 동작하는지 확인"""
+    print_gpu_memory_status("BGE M3 FP16 테스트")
+    print(f"\n===== BGE M3 FP16 테스트 =====")
+    
+    try:
+        from FlagEmbedding import BGEM3FlagModel
+        
+        print("BGE M3 모델 로딩 중...")
+        model = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True)
+        print("✓ 모델 로딩 성공")
+        
+        sentences_1 = ["What is BGE M3?", "Defination of BM25"]
+        sentences_2 = ["BGE M3 is an embedding model supporting dense retrieval, lexical matching and multi-vector interaction.", 
+                       "BM25 is a bag-of-words retrieval function that ranks a set of documents based on the query terms appearing in each document"]
+        
+        print("임베딩 생성 중...")
+        embeddings_1 = model.encode(sentences_1, 
+                                    batch_size=12, 
+                                    max_length=8192)['dense_vecs']
+        embeddings_2 = model.encode(sentences_2)['dense_vecs']
+        
+        similarity = embeddings_1 @ embeddings_2.T
+        print("✓ 임베딩 생성 및 유사도 계산 성공")
+        print(f"유사도 결과:\n{similarity}")
+        
+        # 메모리 정리
+        del model
+        gc.collect()
+        torch.cuda.empty_cache()
+        
+        return True
+        
+    except ImportError:
+        print("✗ FlagEmbedding 라이브러리를 찾을 수 없습니다.")
+        print("설치 명령어: pip install FlagEmbedding")
+        return False
+    except Exception as e:
+        print(f"✗ BGE M3 테스트 실패: {str(e)}")
+        return False
+
 def run_fp32_test(device='cuda'):
     """FP32 테스트 실행"""
     print_gpu_memory_status("FP32 테스트")
@@ -192,6 +233,13 @@ def main():
     # 테스트 실행
     run_fp32_test(device)
     run_fp16_test(device)
+    
+    # BGE M3 테스트 추가
+    bge_success = test_bge_m3_fp16()
+    
+    print(f"\n===== 전체 테스트 결과 =====")
+    print(f"ResNet FP32/FP16 테스트: 완료")
+    print(f"BGE M3 FP16 테스트: {'성공' if bge_success else '실패'}")
 
 if __name__ == "__main__":
     main()

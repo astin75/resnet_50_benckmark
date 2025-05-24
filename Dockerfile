@@ -16,6 +16,9 @@ RUN uv pip install torch torchvision --index-url https://download.pytorch.org/wh
 # Transformers 및 관련 라이브러리 설치
 RUN uv pip install transformers accelerate
 
+# FlagEmbedding (BGE M3) 설치
+RUN uv pip install -U FlagEmbedding
+
 # 작업 디렉토리 생성
 WORKDIR /app
 
